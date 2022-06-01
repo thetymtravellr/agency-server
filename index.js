@@ -11,20 +11,19 @@ app.use(express.json());
 app.use(fileUpload());
 
 // Mongodb
-const { MongoClient, ServerApiVersion } = require("mongodb");
-const uri =`mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.k5a62mv.mongodb.net/?retryWrites=true&w=majority`;
-const client = new MongoClient(uri, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-  serverApi: ServerApiVersion.v1,
-});
-
+const { MongoClient, ServerApiVersion } = require('mongodb');
+const uri = `mongodb+srv://db_user1:${process.env.DB_PASS}@cluster0.k5a62mv.mongodb.net/?retryWrites=true&w=majority`;
+const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true, serverApi: ServerApiVersion.v1 });
+console.log(uri);
 async function run() {
   try {
+
     await client.connect();
     const adminCollection = client.db("agency").collection("admin");
     const orderCollection = client.db("agency").collection("orders");
     const worksCollection = client.db("agency").collection("works");
+    const serviceCollection = client.db("agency").collection("services");
+    const feedbackCollection = client.db("agency").collection("feedbacks");
 
     // api to get all service
     app.get("/getServices", (req, res) => {
@@ -57,7 +56,6 @@ async function run() {
 
     //------------------------------ Works database collection
 
-
     // api to get all works
     app.get("/getWorks", (req, res) => {
       worksCollection
@@ -69,97 +67,52 @@ async function run() {
     });
 
     //---------------------- Feedback database collection
-    const feedbackCollection = client
-      .db(process.env.DB_NAME)
-      .collection("feedbacks");
 
     //  api to get all feedbacks
-    app.get("/getFeedbacks", (req, res) => {
-      feedbackCollection.find({}).toArray((err, feedbacks) => {
-        res.status(200).send(feedbacks);
-      });
+    app.get("/getFeedbacks", async (req, res) => {
+      const result = await feedbackCollection.find({}).toArray();
+      res.send(result)
     });
 
     //api to add feedback to database
-    app.post("/addFeedback", (req, res) => {
+    app.post("/addFeedback", async (req, res) => {
       const feedback = req.body;
-      feedbackCollection.insertOne(feedback).then((result) => {
-        if (result.insertedCount > 0) {
-          res.status(200).send(result.insertedCount > 0);
-        } else {
-          res.statusCode(400);
-        }
-      });
+      const result = await feedbackCollection.insertOne(feedback)
+      res.send(result)
     });
 
     //------------------------- Orders database collection
 
     // api to add order
 
-    app.post("/addOrder", (req, res) => {
+    app.post("/addOrder", async (req, res) => {
       const data = req.body;
       const file = req.files.file;
       const newImg = file.data;
       const encImg = newImg.toString("base64");
-
       var image = {
         contentType: file.mimetype,
         size: file.size,
         img: Buffer.from(encImg, "base64"),
       };
       const order = { ...data, image };
-
-      orderCollection.insertOne(order).then((result) => {
-        if (result.insertedCount > 0) {
-          res.status(200).send(result.insertedCount > 0);
-        } else {
-          res.sendStatus(400);
-        }
+      const result = await orderCollection.insertOne(order)
+      res.send(result)
       });
-    });
 
     // api to get all order
 
-    app.get("/getOrders", (req, res) => {
-      const queryEmail = req.query.email;
-      let filterObject = { email: queryEmail };
-      const projectObject = {};
-      if (!queryEmail) {
-        filterObject = {};
-        projectObject.image = 0;
-      }
-
-      const result = orderCollection
-        .find(filterObject)
-        .project(projectObject)
-        .toArray();
-      if (result.length > 0) {
-        res.status(200).send(orders);
+    app.get("/getOrders", async (req, res) => {
+      let query;
+      if(req.query.email){
+        const queryEmail = req.query.email;
+        query = { email: queryEmail };
       } else {
-        res.sendStatus(400);
+        query = {}
       }
+      const result = await orderCollection.find(query).toArray();
+      res.send(result)
     });
-
-    // app.get("/getOrders", (req, res) => {
-    //   const queryEmail = req.query.email;
-    //   let filterObject = { email: queryEmail };
-    //   const projectObject = {};
-    //   if (!queryEmail) {
-    //     filterObject = {};
-    //     projectObject.image = 0;
-    //   }
-
-    //   orderCollection
-    //     .find(filterObject)
-    //     .project(projectObject)
-    //     .toArray((err, orders) => {
-    //       if (orders.length > 0) {
-    //         res.status(200).send(orders);
-    //       } else {
-    //         res.sendStatus(400);
-    //       }
-    //     });
-    // });
 
     // api to update order
 
@@ -177,20 +130,6 @@ async function run() {
       }
     });
 
-    // app.patch("/updateOrderStatus", (req, res) => {
-    //   const orderId = req.body.id;
-    //   const status = req.body.status;
-    //   orderCollection
-    //     .updateOne({ _id: ObjectId(orderId) }, { $set: { status: status } })
-    //     .then((result) => {
-    //       if (result.modifiedCount) {
-    //         res.status(200).send(result.modifiedCount > 0);
-    //       } else {
-    //         res.sendStatus(400);
-    //       }
-    //     });
-    // });
-
     // api to delete order
 
     app.delete("/cancelOrder/:id", async (req, res) => {
@@ -203,16 +142,6 @@ async function run() {
       }
     });
 
-    // app.delete("/cancelOrder/:id", (req, res) => {
-    //   const id = req.params.id;
-    //   orderCollection.deleteOne({ _id: ObjectId(id) }).then((result) => {
-    //     if (result.deletedCount > 0) {
-    //       res.status(200).send(result.deletedCount > 0);
-    //     } else {
-    //       res.sendStatus(400);
-    //     }
-    //   });
-    // });
 
     // api to search text from add records
     app.get("/searchInOrder", async (req, res) => {
@@ -233,42 +162,18 @@ async function run() {
       const admin = req.body;
       const result = await adminCollection.insertOne(admin);
       res.send(result);
-      // adminCollection.insertOne(req.body).then((result) => {
-      //   if (result.insertedCount > 0) {
-      //     res.status(200).send(result.insertedCount > 0);
-      //   } else {
-      //     res.sendStatus(400);
-      //   }
-      // });
     });
 
     app.get("/getAdmins", async (req, res) => {
       const query = {};
-      const result = await adminCollection.find(query);
+      const result = await adminCollection.find(query).toArray();
       res.send(result);
-      // adminCollection.find({}).toArray((err, admins) => {
-      //   if (admins.length > 0) {
-      //     res.status(200).send(admins);
-      //   } else {
-      //     res.sendStatus(400);
-      //   }
-      // });
     });
   } finally {
   }
 }
 
 run().catch(console.dir)
-
-// connecting to database
-// client.connect((err) => {
-//   // ---------------------------------Services database collection
-//   const serviceCollection = client
-//     .db(process.env.DB_NAME)
-//     .collection("services");
-//   // perform actions on the collection object
-//   console.log("database connection established");
-// });
 
 app.get("/", (req, res) => {
   res.send("Hello World!");
@@ -277,7 +182,3 @@ app.get("/", (req, res) => {
 app.listen(port, () => {
   console.log(`Example app listening at http://localhost:${port}`);
 });
-
-
-// DB_USER=db_user
-// DB_PASS=hR1yhQ9LDl5vXzZM
