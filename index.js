@@ -11,10 +11,10 @@ app.use(express.json());
 app.use(fileUpload());
 
 // Mongodb
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const uri = `mongodb+srv://db_user1:${process.env.DB_PASS}@cluster0.k5a62mv.mongodb.net/?retryWrites=true&w=majority`;
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true, serverApi: ServerApiVersion.v1 });
-console.log(uri);
+
 async function run() {
   try {
 
@@ -26,14 +26,13 @@ async function run() {
     const feedbackCollection = client.db("agency").collection("feedbacks");
 
     // api to get all service
-    app.get("/getServices", (req, res) => {
-      serviceCollection.find({}).toArray((err, services) => {
-        res.status(200).send(services);
-      });
+    app.get("/getServices", async (req, res) => {
+      const result = await serviceCollection.find({}).toArray();
+      res.send(result)
     });
 
     //api to add service to database
-    app.post("/addService", (req, res) => {
+    app.post("/addService", async (req, res) => {
       const data = req.body;
       const file = req.files.file;
       const newImg = file.data;
@@ -45,13 +44,9 @@ async function run() {
         img: Buffer.from(encImg, "base64"),
       };
       const service = { ...data, image };
-      serviceCollection.insertOne(service).then((result) => {
-        if (result.insertedCount > 0) {
-          res.status(200).send(result.insertedCount > 0);
-        } else {
-          res.statusCode(400);
-        }
-      });
+      console.log(service);
+      const result = await serviceCollection.insertOne(service)
+      res.send(result)
     });
 
     //------------------------------ Works database collection
@@ -116,18 +111,16 @@ async function run() {
 
     // api to update order
 
-    app.patch("/updateOrderStatus", (req, res) => {
-      const orderId = req.body.id;
-      const status = req.body.status;
-      const result = orderCollection.updateOne(
-        { _id: ObjectId(orderId) },
-        { $set: { status: status } }
-      );
-      if (result.modifiedCount) {
-        res.status(200).send(result.modifiedCount > 0);
-      } else {
-        res.sendStatus(400);
+    app.put("/updateOrderStatus/:id",async (req, res) => {
+      const id = req.params.id;
+      const { status } = req.body;
+      const filter = { _id: ObjectId(id) }
+      const doc = {
+        $set: { status: status }
       }
+      const result = await orderCollection.updateOne(filter,doc
+      );
+      res.send(result)
     });
 
     // api to delete order
